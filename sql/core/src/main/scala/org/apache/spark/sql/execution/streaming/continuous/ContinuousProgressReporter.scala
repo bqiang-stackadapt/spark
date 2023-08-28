@@ -159,7 +159,7 @@ trait ContinuousProgressReporter extends ProgressReporter {
       name = name,
       timestamp = formatTimestamp(currentTriggerStartTimestamp),
       batchId = epochId,
-      durationMs = recordDurationMs.toMap.mapValues(long2Long).asJava,
+      durationMs = new java.util.HashMap(recordDurationMs.toMap.mapValues(long2Long).asJava),
       eventTime = new java.util.HashMap(executionStats.eventTimeStats.asJava),
       stateOperators = executionStats.stateOperators.toArray,
       sources = sourceProgress.toArray,
