@@ -212,16 +212,18 @@ class ContinuousExecution(
           " not yet supported for continuous processing")
     }
 
-    lastExecution = new IncrementalExecution(
-      sparkSessionForQuery,
-      withNewSources,
-      outputMode,
-      checkpointFile("state"),
-      id,
-      runId,
-      currentBatchId,
-      offsetSeqMetadata)
-    lastExecution.executedPlan // Force the lazy generation of execution plan
+    reportTimeTaken("queryPlanning") {
+      lastExecution = new IncrementalExecution(
+        sparkSessionForQuery,
+        withNewSources,
+        outputMode,
+        checkpointFile("state"),
+        id,
+        runId,
+        currentBatchId,
+        offsetSeqMetadata)
+      lastExecution.executedPlan // Force the lazy generation of execution plan
+    }
 
     val stream = withNewSources.collect {
       case relation: StreamingDataSourceV2Relation =>

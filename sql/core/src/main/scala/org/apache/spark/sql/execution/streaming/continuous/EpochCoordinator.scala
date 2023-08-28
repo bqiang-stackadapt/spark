@@ -207,7 +207,6 @@ private[continuous] class EpochCoordinator(
     // in the query, or we will end up dropping the commit if we restart in the middle.
     writeSupport.commit(epoch, messages.toArray)
     val epochStats = createEpochStats(epoch)
-    logInfo(s"[Stackadapt] Epoch stats is: $epochStats")
     query.commit(epoch, createEpochStats(epoch))
   }
 

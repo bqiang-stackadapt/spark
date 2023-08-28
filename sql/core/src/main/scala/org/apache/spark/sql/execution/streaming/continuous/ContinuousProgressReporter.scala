@@ -134,12 +134,6 @@ trait ContinuousProgressReporter extends ProgressReporter {
     } else {
       Double.NaN
     }
-    logInfo(s"[Stackadapt] epochId: $epochId")
-    logInfo(s"[Stackadapt] Execution stats: $executionStats")
-    logInfo(s"[Stackadapt] currentTriggerStartTimestamp: $currentTriggerStartTimestamp")
-    logInfo(s"[Stackadapt] currentTriggerEndTimestamp: $currentTriggerEndTimestamp")
-    logInfo(s"[Stackadapt] lastTriggerStartTimestamp: $lastTriggerStartTimestamp")
-    logInfo(s"[Stackadapt] lastTriggerEndTimestamp: $lastCommittedTriggerEndTimestamp")
 
     val sourceProgress = sources.distinct.map { source =>
       val numRecords = executionStats.inputRows.getOrElse(source, 0L)
