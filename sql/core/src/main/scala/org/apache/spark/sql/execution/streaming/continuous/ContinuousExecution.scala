@@ -25,6 +25,7 @@ import java.util.function.UnaryOperator
 import scala.collection.mutable.{Map => MutableMap}
 
 import org.apache.spark.SparkEnv
+import org.apache.spark.rpc.RpcEndpointRef
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{CurrentDate, CurrentTimestampLike, LocalTimestamp}
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -49,12 +50,15 @@ class ContinuousExecution(
     plan: WriteToStream)
   extends StreamExecution(
     sparkSession, plan.name, plan.resolvedCheckpointLocation, plan.inputQuery, plan.sink,
-    trigger, triggerClock, plan.outputMode, plan.deleteCheckpointOnStop) {
+    trigger, triggerClock, plan.outputMode, plan.deleteCheckpointOnStop
+  ) with ContinuousProgressReporter {
 
   @volatile protected var sources: Seq[ContinuousStream] = Seq()
 
   // For use only in test harnesses.
   private[sql] var currentEpochCoordinatorId: String = _
+
+  protected var epochEndpoint: RpcEndpointRef = _
 
   // Throwable that caused the execution to fail
   private val failure: AtomicReference[Throwable] = new AtomicReference[Throwable](null)
@@ -208,18 +212,16 @@ class ContinuousExecution(
           " not yet supported for continuous processing")
     }
 
-    reportTimeTaken("queryPlanning") {
-      lastExecution = new IncrementalExecution(
-        sparkSessionForQuery,
-        withNewSources,
-        outputMode,
-        checkpointFile("state"),
-        id,
-        runId,
-        currentBatchId,
-        offsetSeqMetadata)
-      lastExecution.executedPlan // Force the lazy generation of execution plan
-    }
+    lastExecution = new IncrementalExecution(
+      sparkSessionForQuery,
+      withNewSources,
+      outputMode,
+      checkpointFile("state"),
+      id,
+      runId,
+      currentBatchId,
+      offsetSeqMetadata)
+    lastExecution.executedPlan // Force the lazy generation of execution plan
 
     val stream = withNewSources.collect {
       case relation: StreamingDataSourceV2Relation =>
@@ -238,7 +240,7 @@ class ContinuousExecution(
       ContinuousExecution.EPOCH_COORDINATOR_ID_KEY, epochCoordinatorId)
 
     // Use the parent Spark session for the endpoint since it's where this query ID is registered.
-    val epochEndpoint = EpochCoordinatorRef.create(
+    epochEndpoint = EpochCoordinatorRef.create(
       logicalPlan.write,
       stream,
       this,
@@ -352,7 +354,7 @@ class ContinuousExecution(
    * Mark the specified epoch as committed. All readers must have reported end offsets for the epoch
    * before this is called.
    */
-  def commit(epoch: Long): Unit = {
+  def commit(epoch: Long, epochStats: EpochStats): Unit = {
     updateStatusMessage(s"Committing epoch $epoch")
 
     assert(sources.length == 1, "only one continuous source supported currently")
@@ -360,7 +362,8 @@ class ContinuousExecution(
 
     synchronized {
       // Record offsets before updating `committedOffsets`
-      recordTriggerOffsets(from = committedOffsets, to = availableOffsets, latest = latestOffsets)
+      recordTriggerOffsets(from = committedOffsets,
+        to = availableOffsets, latest = latestOffsets, epochId = epoch)
       if (queryExecutionThread.isAlive) {
         commitLog.add(epoch, CommitMetadata())
         val offset =
@@ -380,6 +383,8 @@ class ContinuousExecution(
     if (minLogEntriesToMaintain <= epoch) {
       purge(epoch + 1 - minLogEntriesToMaintain)
     }
+
+    finishTrigger(true, true, epoch, epochStats)
 
     awaitProgressLock.lock()
     try {
