@@ -142,7 +142,7 @@ trait ProgressReporter extends Logging {
     latestStreamProgress = to
   }
 
-  private def addNewProgress(newProgress: StreamingQueryProgress): Unit = {
+  protected def addNewProgress(newProgress: StreamingQueryProgress): Unit = {
     progressBuffer.synchronized {
       progressBuffer += newProgress
       while (progressBuffer.length >= sparkSession.sqlContext.conf.streamingProgressRetention) {
@@ -151,7 +151,7 @@ trait ProgressReporter extends Logging {
     }
   }
 
-  private def updateProgress(newProgress: StreamingQueryProgress): Unit = {
+  protected def updateProgress(newProgress: StreamingQueryProgress): Unit = {
     // Reset noDataEventTimestamp if we processed any data
     lastNoExecutionProgressEventTime = triggerClock.getTimeMillis()
 
@@ -260,7 +260,7 @@ trait ProgressReporter extends Logging {
   }
 
   /** Extract statistics about stateful operators from the executed query plan. */
-  private def extractStateOperatorMetrics(hasExecuted: Boolean): Seq[StateOperatorProgress] = {
+  protected def extractStateOperatorMetrics(hasExecuted: Boolean): Seq[StateOperatorProgress] = {
     if (lastExecution == null) return Nil
     // lastExecution could belong to one of the previous triggers if `!hasExecuted`.
     // Walking the plan again should be inexpensive.

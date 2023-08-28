@@ -2512,7 +2512,7 @@ object SQLConf {
       .doc("The number of progress updates to retain for a streaming query")
       .version("2.1.1")
       .intConf
-      .createWithDefault(100)
+      .createWithDefault(10000)
 
   val STREAMING_CHECKPOINT_FILE_MANAGER_CLASS =
     buildConf("spark.sql.streaming.checkpointFileManagerClass")
